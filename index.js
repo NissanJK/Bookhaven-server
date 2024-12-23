@@ -73,6 +73,31 @@ async function run() {
                 res.status(500).send({ success: false, message: 'Logout failed' });
             }
         });
+        app.post('/books', async (req, res) => {
+            try {
+                const { name, quantity, authorName, category, shortDescription, rating, image } = req.body;
+                if (!name || !authorName || !category || !rating || !image) {
+                    return res.status(400).send({ success: false, message: 'Missing required fields' });
+                }
+
+                const newBook = {
+                    name,
+                    quantity: Number(quantity) || 0,
+                    authorName,
+                    category,
+                    shortDescription,
+                    rating: Number(rating),
+                    image,
+                    createdAt: new Date(),
+                };
+
+                const result = await booksCollection.insertOne(newBook);
+                res.send({ success: true, message: 'Book added successfully', data: result });
+            } catch (error) {
+                console.error(error);
+                res.status(500).send({ success: false, message: 'Internal Server Error' });
+            }
+        });
     } finally {
         // Ensures that the client will close when you finish/error
         // await client.close();
