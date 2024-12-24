@@ -5,6 +5,7 @@ const cookieParser = require('cookie-parser');
 const port = process.env.PORT || 5000;
 const app = express();
 const { MongoClient, ServerApiVersion } = require('mongodb');
+const { ObjectId } = require('mongodb');
 require('dotenv').config();
 app.use(cors({
     origin: [
@@ -98,10 +99,62 @@ async function run() {
                 res.status(500).send({ success: false, message: 'Internal Server Error' });
             }
         });
-        app.get('/books', async (req, res) => {
+        app.get('/books', verifyToken, async (req, res) => {
             try {
                 const books = await booksCollection.find().toArray();
                 res.send(books);
+            } catch (error) {
+                console.error(error);
+                res.status(500).send({ success: false, message: 'Internal Server Error' });
+            }
+        });
+
+        app.get('/books/:id', verifyToken, async (req, res) => {
+            try {
+                const { id } = req.params;
+                const book = await booksCollection.findOne({ _id: new ObjectId(id) });
+
+                if (!book) {
+                    return res.status(404).send({ success: false, message: 'Book not found' });
+                }
+
+                res.send(book);
+            } catch (error) {
+                console.error(error);
+                res.status(500).send({ success: false, message: 'Internal Server Error' });
+            }
+        });
+
+        app.put('/books/:id', verifyToken, async (req, res) => {
+            try {
+                const { id } = req.params;
+                const { name, authorName, category, rating, image } = req.body;
+
+                if (!name || !authorName || !category || !rating || !image) {
+                    return res.status(400).send({ success: false, message: 'Missing required fields' });
+                }
+
+                const updatedBook = {
+                    $set: {
+                        name,
+                        authorName,
+                        category,
+                        rating: Number(rating),
+                        image,
+                        updatedAt: new Date(),
+                    },
+                };
+
+                const result = await booksCollection.updateOne(
+                    { _id: new ObjectId(id) },
+                    updatedBook
+                );
+
+                if (result.matchedCount === 0) {
+                    return res.status(404).send({ success: false, message: 'Book not found' });
+                }
+
+                res.send({ success: true, message: 'Book updated successfully' });
             } catch (error) {
                 console.error(error);
                 res.status(500).send({ success: false, message: 'Internal Server Error' });
