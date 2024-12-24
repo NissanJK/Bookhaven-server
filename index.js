@@ -98,6 +98,15 @@ async function run() {
                 res.status(500).send({ success: false, message: 'Internal Server Error' });
             }
         });
+        app.get('/books', async (req, res) => {
+            try {
+                const books = await booksCollection.find().toArray();
+                res.send(books);
+            } catch (error) {
+                console.error(error);
+                res.status(500).send({ success: false, message: 'Internal Server Error' });
+            }
+        });
     } finally {
         // Ensures that the client will close when you finish/error
         // await client.close();
