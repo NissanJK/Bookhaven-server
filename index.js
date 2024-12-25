@@ -10,6 +10,8 @@ require('dotenv').config();
 app.use(cors({
     origin: [
         'http://localhost:5173',
+        'https://bookhaven-f4847.web.app',
+        'https://bookhaven-f4847.firebaseapp.com',
     ],
     credentials: true
 }));
@@ -43,10 +45,10 @@ const client = new MongoClient(uri, {
 async function run() {
     try {
         // Connect the client to the server	(optional starting in v4.7)
-        await client.connect();
+        // await client.connect();
         // Send a ping to confirm a successful connection
-        await client.db("admin").command({ ping: 1 });
-        console.log("Pinged your deployment. You successfully connected to MongoDB!");
+        // await client.db("admin").command({ ping: 1 });
+        // console.log("Pinged your deployment. You successfully connected to MongoDB!");
         const booksCollection = client.db('libraryManagement').collection('books');
         const borrowCollection = client.db('libraryManagement').collection('borrowedBooks');
         app.post('/jwt', async (req, res) => {
@@ -56,7 +58,8 @@ async function run() {
 
                 res.cookie('token', token, {
                     httpOnly: true,
-                    secure: false,
+                    secure: process.env.NODE_ENV === 'production',
+                    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict'
                 }).send({ success: true });
             } catch (error) {
                 console.error('Error generating token:', error);
@@ -67,7 +70,8 @@ async function run() {
             try {
                 res.clearCookie('token', {
                     httpOnly: true,
-                    secure: false,
+                    secure: process.env.NODE_ENV === 'production',
+                    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict'
                 }).send({ success: true });
             } catch (error) {
                 console.error('Error during logout:', error);
@@ -99,7 +103,7 @@ async function run() {
                 res.status(500).send({ success: false, message: 'Internal Server Error' });
             }
         });
-        app.get('/books', verifyToken, async (req, res) => {
+        app.get('/books', async (req, res) => {
             try {
                 const books = await booksCollection.find().toArray();
                 res.send(books);
@@ -160,7 +164,7 @@ async function run() {
                 res.status(500).send({ success: false, message: 'Internal Server Error' });
             }
         });
-        app.get('/books/category/:category', verifyToken, async (req, res) => {
+        app.get('/books/category/:category', async (req, res) => {
             try {
                 const { category } = req.params;
                 const books = await booksCollection.find({ category }).toArray();
