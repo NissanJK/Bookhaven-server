@@ -220,28 +220,80 @@ async function run() {
         app.post('/return', verifyToken, async (req, res) => {
             try {
                 const { borrowId } = req.body;
-
-                const borrowRecord = await borrowCollection.findOneAndUpdate(
-                    { _id: new ObjectId(borrowId), isReturned: false },
-                    { $set: { isReturned: true } },
-                    { returnDocument: 'after' }
-                );
-
-                if (!borrowRecord.value) {
-                    return res.status(400).send({ success: false, message: 'Borrow record not found or already returned' });
+        
+                const borrowRecord = await borrowCollection.findOne({ _id: new ObjectId(borrowId), isReturned: false });
+        
+                if (!borrowRecord) {
+                    return res.status(400).send({
+                        success: false,
+                        message: 'Borrow record not found or already returned',
+                    });
                 }
-
-                await booksCollection.updateOne(
-                    { _id: borrowRecord.value.bookId },
+        
+                const deleteResult = await borrowCollection.deleteOne({ _id: new ObjectId(borrowId) });
+        
+                if (deleteResult.deletedCount === 0) {
+                    return res.status(500).send({
+                        success: false,
+                        message: 'Failed to delete borrow record',
+                    });
+                }
+        
+                const updateBookResult = await booksCollection.updateOne(
+                    { _id: new ObjectId(borrowRecord.bookId) },
                     { $inc: { quantity: 1 } }
                 );
-
+        
+                if (updateBookResult.modifiedCount === 0) {
+                    console.error('Error updating book quantity');
+                    return res.status(500).send({
+                        success: false,
+                        message: 'Failed to update book quantity',
+                    });
+                }
+        
                 res.send({ success: true, message: 'Book returned successfully' });
+            } catch (error) {
+                console.error('Error during book return:', error);
+                res.status(500).send({ success: false, message: 'Internal Server Error' });
+            }
+        });
+        
+        
+        app.get('/borrowed-books', verifyToken, async (req, res) => {
+            try {
+                const userEmail = req.user.email;
+                const borrowedBooks = await borrowCollection.aggregate([
+                    { $match: { userEmail, isReturned: false } },
+                    {
+                        $lookup: {
+                            from: 'books', 
+                            localField: 'bookId',
+                            foreignField: '_id',
+                            as: 'bookDetails'
+                        }
+                    },
+                    { $unwind: '$bookDetails' },
+                    {
+                        $project: {
+                            _id: 1,
+                            bookId: 1,
+                            title: '$bookDetails.name',
+                            category: '$bookDetails.category',
+                            coverImage: '$bookDetails.image',
+                            createdAt: 1,
+                            returnDate: 1,
+                        }
+                    }
+                ]).toArray();
+        
+                res.send(borrowedBooks);
             } catch (error) {
                 console.error(error);
                 res.status(500).send({ success: false, message: 'Internal Server Error' });
             }
         });
+        
 
     } finally {
         // Ensures that the client will close when you finish/error
