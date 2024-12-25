@@ -48,7 +48,7 @@ async function run() {
         await client.db("admin").command({ ping: 1 });
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
         const booksCollection = client.db('libraryManagement').collection('books');
-
+        const borrowCollection = client.db('libraryManagement').collection('borrowedBooks');
         app.post('/jwt', async (req, res) => {
             try {
                 const user = req.body;
@@ -160,6 +160,89 @@ async function run() {
                 res.status(500).send({ success: false, message: 'Internal Server Error' });
             }
         });
+        app.get('/books/category/:category', verifyToken, async (req, res) => {
+            try {
+                const { category } = req.params;
+                const books = await booksCollection.find({ category }).toArray();
+
+                if (!books.length) {
+                    return res.status(404).send({ success: false, message: 'No books found for this category' });
+                }
+
+                res.send(books);
+            } catch (error) {
+                console.error(error);
+                res.status(500).send({ success: false, message: 'Internal Server Error' });
+            }
+        });
+        app.post('/borrow', verifyToken, async (req, res) => {
+            try {
+                const { bookId, returnDate } = req.body;
+                const userEmail = req.user.email;
+                const alreadyBorrowed = await borrowCollection.findOne({
+                    bookId: new ObjectId(bookId),
+                    userEmail,
+                    isReturned: false,
+                });
+
+                if (alreadyBorrowed) {
+                    return res.status(400).send({ success: false, message: 'You have already borrowed this book' });
+                }
+
+                const activeBorrows = await borrowCollection.countDocuments({ userEmail, isReturned: false });
+
+                if (activeBorrows >= 3) {
+                    return res.status(400).send({ success: false, message: 'Cannot borrow more than 3 books' });
+                }
+
+                const book = await booksCollection.findOneAndUpdate(
+                    { _id: new ObjectId(bookId), quantity: { $gt: 0 } },
+                    { $inc: { quantity: -1 } },
+                    { returnDocument: 'after' }
+                );
+
+                const borrowRecord = {
+                    bookId: new ObjectId(bookId),
+                    userEmail,
+                    returnDate: new Date(returnDate),
+                    isReturned: false,
+                    createdAt: new Date(),
+                };
+
+                await borrowCollection.insertOne(borrowRecord);
+
+                res.send({ success: true, message: 'Book borrowed successfully' });
+            } catch (error) {
+                console.error(error);
+                res.status(500).send({ success: false, message: 'Internal Server Error' });
+            }
+        });
+        app.post('/return', verifyToken, async (req, res) => {
+            try {
+                const { borrowId } = req.body;
+
+                const borrowRecord = await borrowCollection.findOneAndUpdate(
+                    { _id: new ObjectId(borrowId), isReturned: false },
+                    { $set: { isReturned: true } },
+                    { returnDocument: 'after' }
+                );
+
+                if (!borrowRecord.value) {
+                    return res.status(400).send({ success: false, message: 'Borrow record not found or already returned' });
+                }
+
+                await booksCollection.updateOne(
+                    { _id: borrowRecord.value.bookId },
+                    { $inc: { quantity: 1 } }
+                );
+
+                res.send({ success: true, message: 'Book returned successfully' });
+            } catch (error) {
+                console.error(error);
+                res.status(500).send({ success: false, message: 'Internal Server Error' });
+            }
+        });
+
     } finally {
         // Ensures that the client will close when you finish/error
         // await client.close();
