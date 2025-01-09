@@ -1,7 +1,7 @@
-# Library Management System - Server Side
+# BookHaven - Server Side(Library Management System)
 
 ## Purpose  
-This is the backend for the **Library Management System** project. It manages API endpoints, database operations, and user authentication, enabling smooth library operations like borrowing, returning, and managing books.  
+This is the backend for the **BookHaven(Library Management System)** project. It manages API endpoints, database operations, and user authentication, enabling smooth library operations like borrowing, returning, and managing books.  
 
 ## Live URL  
 - [Server Live URL](https://library-management-system-server-swart.vercel.app/)  
