@@ -113,7 +113,7 @@ async function run() {
             }
         });
 
-        app.get('/books/:id', verifyToken, async (req, res) => {
+        app.get('/books/:id', async (req, res) => {
             try {
                 const { id } = req.params;
                 const book = await booksCollection.findOne({ _id: new ObjectId(id) });
